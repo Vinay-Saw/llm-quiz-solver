@@ -26,7 +26,7 @@ Railway provides easy deployment with automatic HTTPS.
 
 4. **Configure Start Command**:
    ```
-   uvicorn api_server:app --host 0.0.0.0 --port $PORT
+   uvicorn app:app --host 0.0.0.0 --port $PORT
    ```
 
 5. **Deploy**: Push to main branch, Railway auto-deploys
@@ -45,7 +45,7 @@ Free tier available with automatic HTTPS.
    - Connect GitHub repo
    - Environment: Python 3.11
    - Build Command: `pip install -r requirements.txt && playwright install chromium`
-   - Start Command: `uvicorn api_server:app --host 0.0.0.0 --port $PORT`
+   - Start Command: `uvicorn app:app --host 0.0.0.0 --port $PORT`
 
 3. **Add Environment Variables** in Render dashboard
 
@@ -69,7 +69,7 @@ Classic PaaS option.
 
 3. **Create Procfile**:
    ```
-   web: uvicorn api_server:app --host 0.0.0.0 --port $PORT
+   web: uvicorn app:app --host 0.0.0.0 --port $PORT
    ```
 
 4. **Create runtime.txt**:
@@ -117,7 +117,7 @@ Serverless container deployment.
    COPY . .
 
    # Run app
-   CMD ["uvicorn", "api_server:app", "--host", "0.0.0.0", "--port", "8080"]
+   CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8080"]
    ```
 
 2. **Deploy**:
@@ -165,7 +165,7 @@ Traditional VPS hosting.
    # Add your credentials
 
    # Run with nohup
-   nohup python3 api_server.py > server.log 2>&1 &
+   nohup python3 app.py > server.log 2>&1 &
    ```
 
 3. **Setup Nginx (optional)**:
@@ -291,7 +291,7 @@ If primary deployment fails:
    brew install ngrok  # or download from ngrok.com
 
    # Run server locally
-   python api_server.py &
+   python app.py &
 
    # Expose via ngrok
    ngrok http 8000

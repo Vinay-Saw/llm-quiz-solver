@@ -20,7 +20,7 @@ const LLMQuizProject = () => {
   const fileStructure = [
     { name: '📁 llm-quiz-solver/', type: 'folder', children: [
       { name: '📄 main.py', desc: 'Main orchestration logic' },
-      { name: '📄 api_server.py', desc: 'FastAPI endpoint handler' },
+      { name: '📄 app.py', desc: 'FastAPI endpoint handler' },
       { name: '📄 quiz_solver.py', desc: 'Quiz solving engine' },
       { name: '📄 tools.py', desc: 'Utility functions' },
       { name: '📄 requirements.txt', desc: 'Python dependencies' },
