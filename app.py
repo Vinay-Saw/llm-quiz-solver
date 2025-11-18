@@ -1,13 +1,19 @@
 """
 FastAPI server for handling quiz requests
+Refactored for Render.com deployment with Lifecycle management and Task tracking
 """
 import asyncio
 import os
-from fastapi import FastAPI, HTTPException
+import logging
+from contextlib import asynccontextmanager
+from typing import Set
+
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import logging
-from quiz_solver import QuizSolver
+from playwright.async_api import async_playwright
+
+from quiz_solver import QuizSolver, set_global_browser, close_global_browser
 
 # Setup logging
 logging.basicConfig(
@@ -16,7 +22,36 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="LLM Quiz Solver API")
+# Load environment variables
+STUDENT_EMAIL = os.getenv("STUDENT_EMAIL", "")
+STUDENT_SECRET = os.getenv("STUDENT_SECRET", "")
+
+# Store strong references to background tasks to prevent Garbage Collection
+background_tasks: Set[asyncio.Task] = set()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Manage application lifecycle.
+    Initializes Playwright browser on startup and cleans up on shutdown.
+    """
+    logger.info("Starting up: Initializing Playwright Browser...")
+    playwright = await async_playwright().start()
+    # Launch browser once. Re-use contexts for requests.
+    # Args help with containerized environments (Render/Docker)
+    browser = await playwright.chromium.launch(
+        headless=True,
+        args=['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+    )
+    set_global_browser(browser)
+    
+    yield
+    
+    logger.info("Shutting down: Closing Browser...")
+    await close_global_browser()
+    await playwright.stop()
+
+app = FastAPI(title="LLM Quiz Solver API", lifespan=lifespan)
 
 # CORS middleware
 app.add_middleware(
@@ -26,10 +61,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Load environment variables
-STUDENT_EMAIL = os.getenv("STUDENT_EMAIL", "")
-STUDENT_SECRET = os.getenv("STUDENT_SECRET", "")
 
 class QuizRequest(BaseModel):
     email: str
@@ -46,7 +77,7 @@ async def root():
     return {
         "status": "online",
         "service": "LLM Quiz Solver",
-        "version": "1.0.0"
+        "version": "2.0.0"
     }
 
 @app.post("/quiz", response_model=QuizResponse)
@@ -68,10 +99,11 @@ async def handle_quiz(request: QuizRequest):
         
         logger.info(f"Received quiz request for URL: {request.url}")
         
-        # Start quiz solving in background (non-blocking)
-        asyncio.create_task(solve_quiz_async(request))
+        # Create background task with reference tracking
+        task = asyncio.create_task(solve_quiz_wrapper(request))
+        background_tasks.add(task)
+        task.add_done_callback(background_tasks.discard)
         
-        # Return immediately
         return QuizResponse(
             status="accepted",
             message="Quiz processing started"
@@ -83,22 +115,18 @@ async def handle_quiz(request: QuizRequest):
         logger.error(f"Error handling quiz request: {str(e)}")
         raise HTTPException(status_code=400, detail=f"Bad request: {str(e)}")
 
-async def solve_quiz_async(request: QuizRequest):
+async def solve_quiz_wrapper(request: QuizRequest):
     """
-    Asynchronously solve the quiz
-    This runs in the background after returning 200 to the caller
+    Wrapper to catch exceptions in background tasks
     """
     try:
         solver = QuizSolver(
             email=request.email,
             secret=request.secret
         )
-        
-        # Solve the quiz (this may chain through multiple URLs)
         await solver.solve_quiz_chain(request.url)
-        
     except Exception as e:
-        logger.error(f"Error solving quiz: {str(e)}", exc_info=True)
+        logger.error(f"Critical error in background task: {str(e)}", exc_info=True)
 
 @app.get("/health")
 async def health_check():
@@ -107,13 +135,10 @@ async def health_check():
         "status": "healthy",
         "email_configured": bool(STUDENT_EMAIL),
         "secret_configured": bool(STUDENT_SECRET),
+        "active_tasks": len(background_tasks)
     }
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(
-        app,
-        host="0.0.0.0",
-        port=8000,
-        log_level="info"
-    )
+    # Note: In production, the browser launch inside lifespan will handle initialization
+    uvicorn.run(app, host="0.0.0.0", port=8000)
