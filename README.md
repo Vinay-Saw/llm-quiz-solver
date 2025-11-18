@@ -60,7 +60,7 @@ OPENAI_API_KEY=your_openai_api_key
 ### 3. Run the Server
 
 ```bash
-python api_server.py
+python app.py
 ```
 
 The server will start on `http://0.0.0.0:8000`
@@ -130,7 +130,7 @@ pytest tests/
        │ POST /quiz
        ▼
 ┌─────────────────┐
-│  api_server.py  │
+│     app.py      │
 │   (FastAPI)     │
 └──────┬──────────┘
        │ async
@@ -250,7 +250,7 @@ MIT License - see LICENSE file for details
 ### Running in Development Mode
 
 ```bash
-uvicorn api_server:app --reload --host 0.0.0.0 --port 8000
+uvicorn app:app --reload --host 0.0.0.0 --port 8000
 ```
 
 ### Adding New Tools
@@ -266,7 +266,7 @@ async def my_new_tool(param: str) -> Any:
 
 ### Logging
 
-Logs are written to console. Configure in `api_server.py`:
+Logs are written to console. Configure in `app.py`:
 
 ```python
 logging.basicConfig(
